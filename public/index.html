@@ -1,0 +1,177 @@
+ <html>
+ <head>
+ <meta name="viewport" content="initial-scale=1.0, user-scalable=no"/>
+ <meta http-equiv="content-type" content="text/html; charset=JIS"/>
+ <title>asobiGO</title>
+ <script type="text/javascript" src="http://maps.google.com/maps/api/js?
+
+sensor=false"></script>
+ <script type="text/javascript">
+   var geocoder;
+   var map;
+   var start;
+   var end;
+   var latlng;
+   var lng;
+   var lat;
+   var directionDisplay;
+   var directionsService = new google.maps.DirectionsService();
+   
+   function initialize() {
+     addSampleUIHtml(
+       '起点:<input id="start" type="text" value=""/>'
+     );
+     addSampleUIHtml(
+       '終点:<input id="end" type="text" value=""/>'
+     );
+     addSampleButton('Go!', buttonClick);
+     
+     directionsDisplay = new google.maps.DirectionsRenderer();
+     
+     geocoder = new google.maps.Geocoder();
+     
+     //地図情報オプション
+     var myOptions = {
+       zoom: 12,
+       mapTypeId: google.maps.MapTypeId.ROADMAP
+     }
+     map = new google.maps.Map(document.getElementById("map_canvas"), myOptions);
+    
+     directionsDisplay.setMap(map);
+     codeAddress();
+   }
+
+   //最初地図の中心
+   function codeAddress() {
+     start = "tokyo";
+     if (geocoder) {
+       geocoder.geocode({ 'address': start }, function(results, status) {
+         if (status == google.maps.GeocoderStatus.OK) {
+           map.setCenter(results[0].geometry.location);
+         } else {
+           alert("Geocode was not successful for the following reason: " + status);
+         }
+       });
+     }
+   }
+   
+   function addSampleUIHtml(html) {
+     document.getElementById('sample-ui').innerHTML += html;
+   }
+
+   function addSampleButton(caption, clickHandler) {
+      var btn = document.createElement('input');
+     btn.type = 'button';
+     btn.value = caption;
+     
+     if (btn.attachEvent)
+       btn.attachEvent('onclick', clickHandler);
+     else
+          btn.addEventListener('click', clickHandler, false);
+     
+    document.getElementById('sample-ui').appendChild(btn);
+   }
+
+   //地図で起点から目的地の範囲を示す
+   function buttonClick() {
+     start = document.getElementById('start').value;
+     end = document.getElementById('end').value; 
+     if (geocoder) {
+       geocoder.geocode({ 'address': end }, function(results, status) {
+                if (status == google.maps.GeocoderStatus.OK) {
+                  latlng = results[0].geometry.location;
+                  //食べログAPIで地方レストラン情報を検索するために、緯度と経度を取り出す
+　　　　　　　　　lng = latlng.lng();　
+                  lat = latlng.lat();  
+                } else {
+                    alert("input error");
+                }
+   　　});
+   }
+　　//起点から目的地の経路計算
+     var request = {
+       origin:start,
+       destination:end,
+       travelMode: google.maps.TravelMode.WALKING　//歩く
+     };
+    //起点から目的地の経路を地図で示す
+     var route;
+     directionsService.route(request, function(result, status) {
+       if (status == google.maps.DirectionsStatus.OK) {
+         directionsDisplay.setDirections(result);
+	 route = result.routes[0];
+       }
+     });
+     //距離と歩く時間
+     var distance = route.legs[0].distance.text;
+     var duration = route.legs[0].duration.text;
+     addSampleUIHtml(
+       '<br/><font size="5"> 距離: '+ distance +'</font><br/><font size="5"> 時間: '+ duration+'</font></br>'
+     );
+     
+     getgurume();
+   }
+
+　//食べログでレストラン情報を呼び出す
+   function getgurume(){
+       //目的地の緯度と経度でレストラン情報APIで検索する
+        var url="http://api.tabelog.com/Ver2.1/RestaurantSearch/?ResultSet=large&key=1870671a9f77f95632d44513c5f3e85cb0d65e5e&Latitude="+lat+"&Longitude="+lng;
+
+       //JavaScriptでDOMを経由して、食べログからのXMLデータを処理する 
+        var xmlDoc = new ActiveXObject("Microsoft.XMLDOM");
+        xmlDoc.async="false";
+        xmlDoc.load(url);
+        var maxNum = xmlDoc.getElementsByTagName("Item").length;
+       
+　　　//地方ランキングベスト5の資料を取り出す
+        for(var i = 0; i < 5; i++){
+          var restName = xmlDoc.getElementsByTagName("Item")[i].getElementsByTagName("RestaurantName")[0].text;
+          var ads = xmlDoc.getElementsByTagName("Item")[i].getElementsByTagName("Address")[0].text;
+          var type = xmlDoc.getElementsByTagName("Item")[i].getElementsByTagName("Category")[0].text;
+          var hours = xmlDoc.getElementsByTagName("Item")[i].getElementsByTagName("BusinessHours")[0].text;
+          var restLat = xmlDoc.getElementsByTagName("Item")[i].getElementsByTagName("Latitude")[0].text;   
+          var restLng = xmlDoc.getElementsByTagName("Item")[i].getElementsByTagName("Longitude")[0].text;
+          var Rcd = xmlDoc.getElementsByTagName("Item")[i].getElementsByTagName("Rcd")[0].text;
+          var restUrl = xmlDoc.getElementsByTagName("Item")[i].getElementsByTagName("TabelogUrl")[0].text;
+
+          //食べログのレストラン画像APIで画像を呼び出す
+          var url2="http://api.tabelog.com/Ver1/ReviewImageSearch/?key=1870671a9f77f95632d44513c5f3e85cb0d65e5e&Rcd="+Rcd;
+          var xmlDoc2 = new ActiveXObject("Microsoft.XMLDOM");
+          xmlDoc2.async="false";
+          xmlDoc2.load(url2);
+          var image = xmlDoc2.getElementsByTagName("Item")[0].getElementsByTagName("ImageUrlS")[0].text;
+          
+          //レストランの位置をマックする
+          var marker = new google.maps.Marker({
+            map: map,
+            position: new google.maps.LatLng(restLat, restLng),
+            draggable: false,
+            title: restName+"¥n"+type+"¥n"+ads+"¥n"+hours,
+            icon: image
+          });
+          
+　　　　　//検索したレストランをリストする
+          addSampleUIHtml(
+             '<br/><IMG SRC="'+ image 
+            +'"></IMG><br/><a href="'+ restUrl +'">'+ restName 
+            +'</a><br/><font>'+ type 
+            +'</font><br/><font>'+ ads 
+            +'</font></br>'
+          );
+        }
+      }
+
+
+ </script>
+ </head>        
+            <body style="margin:0px; padding:0px;" onload="initialize()">
+            <h1>Google Map + 食べログ</h1>
+              <table style="width: 125%; height: 400px;">
+                <td style="width: 28%" valign="top">
+                  <div id="sample-ui"></div></td>
+                <td style="width: 72%" valign="top">
+                  <div id="map_canvas" style="width:60%; height:100%"></div></td>
+	          <a href="http://tabelog.com"><img src="http://image.tabelog.com/images/banner/tabelog_api_135x17.gif" alt="食べログAPI" title="食べログAPI" border="0" /></a>
+              </table>
+            </body>
+</html>
